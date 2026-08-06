@@ -43,6 +43,26 @@ FILTER_NAMES = {
     18: "SEPIA GRAIN",
     19: "POSTER RELIEF",
     20: "PRISM MIRROR",
+    21: "VAPORWAVE",
+    22: "HOLOGRAM",
+    23: "ULTRAVIOLET POSTER",
+    24: "LIQUID CHROME",
+    25: "CORAL RISOGRAPH",
+    26: "CMYK OFFSET",
+    27: "NEWSPRINT",
+    28: "SUMI INK",
+    29: "AURORA",
+    30: "SUNSET HEAT",
+    31: "LAGOON GLASS",
+    32: "JADE RELIEF",
+    33: "RGB ECHO",
+    34: "CRT DREAM",
+    35: "DATA RIBBONS",
+    36: "MATRIX PHOSPHOR",
+    37: "GOLD LEAF",
+    38: "ROSE GOLD",
+    39: "PEARL SHIFT",
+    40: "OBSIDIAN",
 }
 FILTER_SETS = {
     1: (1, 2, 3, 4),
@@ -50,6 +70,11 @@ FILTER_SETS = {
     3: (9, 10, 11, 12),
     4: (13, 14, 15, 16),
     5: (17, 18, 19, 20),
+    6: (21, 22, 23, 24),
+    7: (25, 26, 27, 28),
+    8: (29, 30, 31, 32),
+    9: (33, 34, 35, 36),
+    10: (37, 38, 39, 40),
 }
 ZONE_COLORS = (
     (255, 54, 181),   # pink / blue in BGR
@@ -235,6 +260,64 @@ def polygon_mask(shape: Tuple[int, int], points: np.ndarray) -> np.ndarray:
     return mask
 
 
+def palette_map(gray: np.ndarray, colors: Sequence[Tuple[int, int, int]]) -> np.ndarray:
+    """Map luminance through a compact BGR palette with smooth transitions."""
+    anchors = np.linspace(0, 255, len(colors), dtype=np.float32)
+    values = np.arange(256, dtype=np.float32)
+    lut = np.empty((256, 1, 3), dtype=np.uint8)
+    for channel in range(3):
+        channel_values = [color[channel] for color in colors]
+        lut[:, 0, channel] = np.interp(values, anchors, channel_values).astype(np.uint8)
+    return cv2.LUT(cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR), lut)
+
+
+def beauty_filter(frame: np.ndarray, strength: float = 0.35) -> np.ndarray:
+    """Apply subtle skin-selective smoothing while preserving the background."""
+    if strength <= 0.0:
+        return frame
+
+    height, width = frame.shape[:2]
+    scale = min(1.0, 640.0 / max(width, 1))
+    if scale < 1.0:
+        working = cv2.resize(
+            frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA
+        )
+    else:
+        working = frame
+
+    ycrcb = cv2.cvtColor(working, cv2.COLOR_BGR2YCrCb)
+    luminance, cr, cb = cv2.split(ycrcb)
+    skin_mask = (
+        (luminance > 38)
+        & (cr > 130) & (cr < 182)
+        & (cb > 72) & (cb < 138)
+    ).astype(np.uint8) * 255
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_OPEN, kernel)
+    skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_CLOSE, kernel)
+
+    smooth = cv2.bilateralFilter(
+        working,
+        7,
+        38.0 + strength * 32.0,
+        5.0 + strength * 4.0,
+    )
+    # Restore part of the original detail so skin stays natural rather than
+    # looking like a uniform blur.
+    smooth = cv2.addWeighted(smooth, 0.82, working, 0.18, 0)
+
+    if scale < 1.0:
+        smooth = cv2.resize(smooth, (width, height), interpolation=cv2.INTER_CUBIC)
+        skin_mask = cv2.resize(
+            skin_mask, (width, height), interpolation=cv2.INTER_NEAREST
+        )
+
+    blended = cv2.addWeighted(frame, 1.0 - strength, smooth, strength, 0)
+    result = frame.copy()
+    cv2.copyTo(blended, skin_mask, result)
+    return result
+
+
 def fashion_filter(frame: np.ndarray, phase: float, style: int = 1) -> np.ndarray:
     """Create visibly different art treatments revealed by the finger zones."""
     height, width = frame.shape[:2]
@@ -391,7 +474,7 @@ def fashion_filter(frame: np.ndarray, phase: float, style: int = 1) -> np.ndarra
         filtered = (sharp // 43) * 43
         relief = cv2.Laplacian(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), cv2.CV_16S, ksize=3)
         filtered[cv2.convertScaleAbs(relief) > 44] = (18, 18, 18)
-    else:  # prismatic mirrored slices
+    elif style == 20:  # prismatic mirrored slices
         filtered = frame.copy()
         half = max(1, width // 2)
         mirrored = cv2.flip(frame[:, :half], 1)
@@ -402,6 +485,157 @@ def fashion_filter(frame: np.ndarray, phase: float, style: int = 1) -> np.ndarra
         stripe = max(6, height // 18)
         for y in range(0, height, stripe * 2):
             filtered[y:y + stripe] = cv2.flip(filtered[y:y + stripe], 1)
+    elif style == 21:  # coordinated neon set: vaporwave gradient
+        gray = cv2.equalizeHist(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+        filtered = palette_map(
+            gray, ((28, 4, 38), (190, 30, 245), (255, 180, 35), (245, 250, 190)))
+        edges = cv2.Canny(gray, 55, 135)
+        filtered[edges > 0] = (255, 235, 90)
+    elif style == 22:  # animated holographic foil
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        yy, xx = np.indices(gray.shape)
+        hue = ((gray.astype(np.int16) // 2 + xx // 5 + yy // 8 + int(phase * 18)) % 180).astype(np.uint8)
+        hsv = np.dstack((hue, np.full_like(gray, 205), cv2.equalizeHist(gray)))
+        filtered = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+        filtered[::5] = np.clip(filtered[::5].astype(np.int16) + 38, 0, 255)
+    elif style == 23:  # ultraviolet graphic poster
+        smooth = cv2.bilateralFilter(frame, 7, 55, 55)
+        gray = cv2.cvtColor(smooth, cv2.COLOR_BGR2GRAY)
+        gray = (gray // 51) * 51
+        filtered = palette_map(
+            gray, ((12, 2, 24), (95, 10, 185), (255, 35, 235), (255, 210, 55)))
+        filtered[cv2.Canny(gray, 48, 118) > 0] = (5, 2, 12)
+    elif style == 24:  # liquid chrome with neon reflections
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        smooth = cv2.GaussianBlur(gray, (0, 0), 2.2)
+        relief = cv2.Laplacian(smooth, cv2.CV_16S, ksize=3)
+        chrome = cv2.convertScaleAbs(relief, alpha=2.4, beta=72)
+        chrome = cv2.addWeighted(chrome, 0.72, cv2.equalizeHist(gray), 0.58, 0)
+        filtered = palette_map(
+            chrome, ((4, 2, 10), (110, 15, 150), (255, 120, 40), (255, 255, 255)))
+    elif style == 25:  # warm coral risograph
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        levels = (cv2.GaussianBlur(gray, (3, 3), 0) // 64) * 64
+        filtered = palette_map(
+            levels, ((18, 20, 50), (45, 55, 160), (70, 110, 245), (225, 240, 250)))
+        yy, xx = np.indices(gray.shape)
+        dots = ((xx + yy) % 6 == 0) & (gray < 175)
+        filtered[dots] = (20, 18, 45)
+    elif style == 26:  # imperfect CMYK offset print
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        ink = 255 - cv2.equalizeHist(gray)
+        cyan = np.roll(ink, 3, axis=1)
+        magenta = np.roll(ink, -3, axis=0)
+        yellow = np.roll(ink, 2, axis=1)
+        filtered = np.empty_like(frame)
+        filtered[..., 0] = 255 - np.maximum(magenta // 2, yellow)
+        filtered[..., 1] = 255 - np.maximum(cyan // 2, magenta)
+        filtered[..., 2] = 255 - np.maximum(cyan, yellow // 2)
+    elif style == 27:  # editorial newsprint
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        paper = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 4
+        )
+        yy, xx = np.indices(gray.shape)
+        halftone = ((xx % 4 == 0) & (yy % 4 == 0) & (gray < 190))
+        filtered = cv2.cvtColor(paper, cv2.COLOR_GRAY2BGR)
+        filtered = np.where(filtered > 0, np.array((225, 238, 246), np.uint8), 18)
+        filtered[halftone] = (35, 25, 70)
+    elif style == 28:  # warm paper and sumi ink
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        wash = cv2.bilateralFilter(gray, 9, 72, 72)
+        ink = cv2.normalize(wash, None, 20, 245, cv2.NORM_MINMAX)
+        filtered = palette_map(
+            ink, ((8, 7, 12), (42, 38, 52), (165, 190, 215), (232, 244, 248)))
+        contours = cv2.Canny(wash, 35, 92)
+        filtered[contours > 0] = (5, 5, 8)
+    elif style == 29:  # aurora palette
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        yy, xx = np.indices(gray.shape)
+        waves = (24 * np.sin(xx / 24.0 + phase) + 18 * np.cos(yy / 19.0 - phase)).astype(np.int16)
+        glow = np.clip(gray.astype(np.int16) + waves, 0, 255).astype(np.uint8)
+        filtered = palette_map(
+            glow, ((20, 8, 35), (125, 35, 90), (120, 245, 40), (255, 245, 175)))
+    elif style == 30:  # sunset heat map
+        gray = cv2.equalizeHist(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+        solar = np.where(gray < 150, gray, 255 - gray // 2).astype(np.uint8)
+        filtered = palette_map(
+            solar, ((35, 5, 45), (90, 20, 190), (35, 95, 255), (100, 245, 255)))
+        filtered[cv2.Canny(gray, 60, 145) > 0] = (60, 15, 110)
+    elif style == 31:  # translucent lagoon glass
+        small_scale = min(1.0, 600.0 / max(width, 1))
+        small = cv2.resize(frame, None, fx=small_scale, fy=small_scale, interpolation=cv2.INTER_AREA)
+        glass = cv2.pyrMeanShiftFiltering(small, 12, 25)
+        glass = cv2.resize(glass, (width, height), interpolation=cv2.INTER_CUBIC)
+        gray = cv2.cvtColor(glass, cv2.COLOR_BGR2GRAY)
+        filtered = palette_map(
+            gray, ((35, 18, 8), (135, 105, 10), (220, 220, 70), (255, 252, 205)))
+        filtered[cv2.Canny(gray, 42, 105) > 0] = (245, 255, 225)
+    elif style == 32:  # carved jade relief
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        kernel = np.array([[-2, -1, 0], [-1, 1, 1], [0, 1, 2]], dtype=np.float32)
+        carved = cv2.convertScaleAbs(cv2.filter2D(gray, cv2.CV_16S, kernel), alpha=1.6, beta=65)
+        filtered = palette_map(
+            carved, ((12, 28, 18), (45, 105, 35), (115, 190, 85), (210, 245, 220)))
+    elif style == 33:  # strong RGB temporal-style echo
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        shift = int(7 + 6 * math.sin(phase * 1.3))
+        filtered = np.dstack((
+            np.roll(gray, shift, axis=1), gray, np.roll(gray, -shift, axis=1)
+        ))
+        filtered = cv2.convertScaleAbs(filtered, alpha=1.28, beta=-18)
+    elif style == 34:  # dreamy CRT phosphor
+        soft = cv2.GaussianBlur(frame, (0, 0), 1.3)
+        hsv = cv2.cvtColor(soft, cv2.COLOR_BGR2HSV)
+        hsv[..., 0] = (hsv[..., 0].astype(np.int16) + 24) % 180
+        hsv[..., 1] = np.clip(hsv[..., 1].astype(np.int16) * 1.5 + 45, 0, 255)
+        filtered = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+        filtered[1::3] = (filtered[1::3].astype(np.float32) * 0.52).astype(np.uint8)
+    elif style == 35:  # coordinated digital data ribbons
+        filtered = frame.copy()
+        band = max(4, height // 18)
+        for index, y in enumerate(range(0, height, band)):
+            offset = int((index % 5 - 2) * 7 + 9 * math.sin(phase + index))
+            filtered[y:y + band] = np.roll(filtered[y:y + band], offset, axis=1)
+        filtered[..., 0] = np.roll(filtered[..., 0], 5, axis=1)
+        filtered[..., 2] = np.roll(filtered[..., 2], -5, axis=1)
+        filtered = (filtered // 32) * 32
+    elif style == 36:  # matrix green phosphor
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.equalizeHist(gray)
+        filtered = palette_map(
+            gray, ((0, 8, 0), (4, 55, 8), (35, 210, 45), (190, 255, 205)))
+        yy, xx = np.indices(gray.shape)
+        grid = ((xx % 7 == 0) | (yy % 7 == 0)) & (gray < 145)
+        filtered[grid] = (0, 28, 0)
+    elif style == 37:  # hammered gold leaf
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        relief = cv2.Laplacian(cv2.GaussianBlur(gray, (3, 3), 0), cv2.CV_16S, ksize=3)
+        metal = cv2.addWeighted(gray, 0.75, cv2.convertScaleAbs(relief, alpha=2.0, beta=45), 0.65, 0)
+        filtered = palette_map(
+            metal, ((3, 8, 15), (12, 55, 105), (35, 155, 225), (205, 245, 255)))
+    elif style == 38:  # satin rose gold
+        gray = cv2.cvtColor(cv2.bilateralFilter(frame, 9, 65, 65), cv2.COLOR_BGR2GRAY)
+        yy, xx = np.indices(gray.shape)
+        sheen = (22 * np.sin((xx + yy) / 34.0 + phase)).astype(np.int16)
+        satin = np.clip(gray.astype(np.int16) + sheen, 0, 255).astype(np.uint8)
+        filtered = palette_map(
+            satin, ((18, 8, 30), (65, 45, 115), (135, 145, 225), (230, 238, 255)))
+    elif style == 39:  # iridescent pearl shift
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        yy, xx = np.indices(gray.shape)
+        hue = ((gray.astype(np.int16) // 6 + xx // 14 - yy // 18 + int(phase * 8)) % 180).astype(np.uint8)
+        saturation = np.clip(115 - gray.astype(np.int16) // 4, 38, 115).astype(np.uint8)
+        value = np.clip(gray.astype(np.int16) + 65, 0, 255).astype(np.uint8)
+        filtered = cv2.cvtColor(np.dstack((hue, saturation, value)), cv2.COLOR_HSV2BGR)
+    else:  # obsidian with restrained violet-gold edges
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        dark = cv2.convertScaleAbs(gray, alpha=0.58, beta=-18)
+        filtered = palette_map(
+            dark, ((2, 1, 5), (18, 6, 28), (62, 25, 90), (130, 100, 175)))
+        edges = cv2.Canny(gray, 38, 96)
+        gold = cv2.dilate(edges, np.ones((2, 2), np.uint8), iterations=1)
+        filtered[gold > 0] = (45, 185, 245)
     return np.clip(filtered, 0, 255).astype(np.uint8)
 
 
@@ -464,6 +698,7 @@ def draw_interface(
     style: int,
     hand_count: int,
     clap_armed: bool,
+    beauty_enabled: bool,
 ) -> None:
     height, width = frame.shape[:2]
     panel_right = min(width - 16, 455)
@@ -482,8 +717,9 @@ def draw_interface(
         frame, f"{gesture_text}   {fps:04.1f} FPS   {hand_count}/2",
         (28, 68), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (83, 238, 255), 1, cv2.LINE_AA,
     )
+    beauty_state = "ON" if beauty_enabled else "OFF"
     cv2.putText(
-        frame, "[1-5] SET   [H] HUD   [M] MIRROR   [S] SHOT   [Q] QUIT",
+        frame, f"[1-9/0] SET   [B] BEAUTY {beauty_state}   [H] HUD   [M] MIRROR   [Q] QUIT",
         (18, height - 18), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1, cv2.LINE_AA,
     )
     for corner_x in (12, width - 12):
@@ -592,7 +828,12 @@ def open_camera(
 
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        print(f"摄像头 {index} 已连接，后端：{backend_name}")
+        actual_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        actual_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print(
+            f"摄像头 {index} 已连接，后端：{backend_name}；"
+            f"请求 {width}x{height}，实际 {actual_width}x{actual_height}"
+        )
         return capture
 
     detail = (
@@ -613,6 +854,10 @@ def run(args: argparse.Namespace) -> None:
     smoother = SmoothLandmarks(args.smoothing)
     clap_switcher = ClapCycleSwitcher()
     mirror, show_hud, style = not args.no_mirror, True, args.style
+    beauty_strength = args.beauty if args.beauty > 0.0 else 0.35
+    beauty_enabled = args.beauty > 0.0
+    style_keys = {ord(str(number)): number for number in range(1, 10)}
+    style_keys[ord("0")] = 10
     switch_flash = 0
     started = time.perf_counter()
     last_tick, smooth_fps = started, 0.0
@@ -621,8 +866,10 @@ def run(args: argparse.Namespace) -> None:
 
     try:
         with make_landmarker(model_path) as landmarker:
-            cv2.namedWindow(window, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(window, args.width, args.height)
+            # WINDOW_AUTOSIZE avoids a Cocoa/OpenCV issue where a resizable
+            # window can vanish while crossing macOS displays with different
+            # Retina scale factors. The image stays at its native resolution.
+            cv2.namedWindow(window, cv2.WINDOW_AUTOSIZE)
             while True:
                 ok, frame = capture.read()
                 if not ok:
@@ -634,8 +881,19 @@ def run(args: argparse.Namespace) -> None:
                     )
                 if mirror:
                     frame = cv2.flip(frame, 1)
+                if beauty_enabled:
+                    frame = beauty_filter(frame, beauty_strength)
                 height, width = frame.shape[:2]
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                detection_scale = min(1.0, args.detect_width / max(width, 1))
+                if detection_scale < 1.0:
+                    detection_frame = cv2.resize(
+                        frame, None,
+                        fx=detection_scale, fy=detection_scale,
+                        interpolation=cv2.INTER_AREA,
+                    )
+                else:
+                    detection_frame = frame
+                rgb = cv2.cvtColor(detection_frame, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
                 timestamp_ms = int((time.perf_counter() - started) * 1000)
                 result = landmarker.detect_for_video(mp_image, timestamp_ms)
@@ -662,7 +920,8 @@ def run(args: argparse.Namespace) -> None:
                 last_tick, frame_index = now, frame_index + 1
                 if show_hud:
                     draw_interface(
-                        output, smooth_fps, style, len(hands), clap_switcher.armed
+                        output, smooth_fps, style, len(hands),
+                        clap_switcher.armed, beauty_enabled,
                     )
                 else:
                     draw_brand(output, style)
@@ -671,17 +930,15 @@ def run(args: argparse.Namespace) -> None:
                 key = cv2.waitKey(1) & 0xFF
                 if key in (ord("q"), 27):
                     break
-                if key in tuple(ord(str(number)) for number in FILTER_SETS):
-                    style = int(chr(key))
+                if key in style_keys:
+                    style = style_keys[key]
                 elif key == ord("h"):
                     show_hud = not show_hud
                 elif key == ord("m"):
                     mirror = not mirror
                     smoother.values.clear()
-                elif key == ord("s"):
-                    shot = Path.cwd() / f"fingerlens_{time.strftime('%Y%m%d_%H%M%S')}.jpg"
-                    cv2.imwrite(str(shot), output)
-                    print(f"已保存截图：{shot}")
+                elif key == ord("b"):
+                    beauty_enabled = not beauty_enabled
     finally:
         capture.release()
         cv2.destroyAllWindows()
@@ -696,9 +953,17 @@ def parse_args() -> argparse.Namespace:
         default="auto",
         help="摄像头后端；默认按操作系统自动选择并回退",
     )
-    parser.add_argument("--width", type=int, default=1280)
-    parser.add_argument("--height", type=int, default=720)
+    parser.add_argument("--width", type=int, default=1920, help="请求的采集宽度，默认 1920")
+    parser.add_argument("--height", type=int, default=1080, help="请求的采集高度，默认 1080")
+    parser.add_argument(
+        "--detect-width", type=int, default=960,
+        help="手部识别使用的最大宽度，默认 960；不影响输出清晰度",
+    )
     parser.add_argument("--style", type=int, choices=tuple(FILTER_SETS), default=1)
+    parser.add_argument(
+        "--beauty", type=float, default=0.0,
+        help="磨皮强度 0-1，默认关闭；按 B 以 0.35 开启",
+    )
     parser.add_argument("--smoothing", type=float, default=0.58, help="0-1，越大越跟手")
     parser.add_argument("--no-mirror", action="store_true", help="关闭自拍镜像")
     parser.add_argument(
@@ -708,6 +973,11 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if not 0.0 < args.smoothing <= 1.0:
         parser.error("--smoothing 必须在 (0, 1] 范围内")
+    if not 0.0 <= args.beauty <= 1.0:
+        parser.error("--beauty 必须在 [0, 1] 范围内")
+    dimensions = (args.width, args.height, args.detect_width)
+    if any(value <= 0 for value in dimensions):
+        parser.error("采集和识别尺寸必须大于 0")
     return args
 
 

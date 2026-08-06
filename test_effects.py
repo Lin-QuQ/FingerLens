@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -6,12 +7,15 @@ from finger_lens import (
     ClapCycleSwitcher,
     SmoothLandmarks,
     FILTER_NAMES,
+    FILTER_SETS,
+    beauty_filter,
     camera_backend_candidates,
     camera_frame_is_black,
     camera_help,
     draw_zones,
     fashion_filter,
     polygon_mask,
+    parse_args,
 )
 
 
@@ -37,6 +41,26 @@ class EffectTests(unittest.TestCase):
             self.assertEqual(result.shape, frame.shape)
             self.assertEqual(result.dtype, np.uint8)
 
+    def test_beauty_filter_preserves_shape_and_background(self):
+        frame = np.full((96, 128, 3), (70, 110, 170), dtype=np.uint8)
+        frame[24:72, 40:88] = (95, 145, 205)
+        frame[36:60:2, 48:80:2] = (70, 105, 160)
+        result = beauty_filter(frame, 0.5)
+        self.assertEqual(result.shape, frame.shape)
+        self.assertEqual(result.dtype, np.uint8)
+        np.testing.assert_array_equal(beauty_filter(frame, 0.0), frame)
+
+    def test_beauty_is_disabled_by_default(self):
+        with patch("sys.argv", ["finger_lens.py"]):
+            self.assertEqual(parse_args().beauty, 0.0)
+
+    def test_ten_sets_cover_forty_unique_filters(self):
+        self.assertEqual(len(FILTER_SETS), 10)
+        filter_ids = [filter_id for group in FILTER_SETS.values() for filter_id in group]
+        self.assertEqual(len(filter_ids), 40)
+        self.assertEqual(len(set(filter_ids)), 40)
+        self.assertEqual(set(filter_ids), set(FILTER_NAMES))
+
     def test_two_hands_change_zone_pixels(self):
         frame = np.full((160, 220, 3), 80, dtype=np.uint8)
         left = np.tile(np.array([30.0, 80.0]), (21, 1))
@@ -44,8 +68,12 @@ class EffectTests(unittest.TestCase):
         for i, tip in enumerate((4, 8, 12, 16, 20)):
             left[tip] = (30 + i * 8, 30 + i * 24)
             right[tip] = (190 - i * 8, 30 + i * 24)
-        result = draw_zones(frame, {"Left": left, "Right": right}, 1.0, 1)
-        self.assertGreater(np.mean(np.abs(result.astype(int) - frame.astype(int))), 1.0)
+        for style in FILTER_SETS:
+            result = draw_zones(frame, {"Left": left, "Right": right}, 1.0, style)
+            self.assertEqual(result.shape, frame.shape)
+            self.assertGreater(
+                np.mean(np.abs(result.astype(int) - frame.astype(int))), 1.0
+            )
 
     def test_black_camera_frame_detection(self):
         self.assertTrue(camera_frame_is_black(np.zeros((64, 64, 3), dtype=np.uint8)))

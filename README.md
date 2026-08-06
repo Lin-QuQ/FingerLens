@@ -6,9 +6,11 @@
 
 - 实时追踪两只手和十个指尖
 - 四个指缝区域同时使用不同滤镜
-- 5 套组合、共 20 种艺术滤镜
+- 10 套组合、共 40 种艺术滤镜
+- 轻度肤色区域磨皮，可调强度并实时开关
 - 双手像鼓掌一样合拢再分开，即可切换下一套
-- 支持快捷键切换、镜像、隐藏界面和截图
+- 支持快捷键切换、镜像和隐藏界面
+- 默认请求 1920×1080 高清画面，并用较小图像进行手部识别以兼顾帧率
 - 自动适配 macOS、Windows 和 Linux 摄像头后端
 
 ## 系统要求
@@ -85,13 +87,19 @@ MediaPipe 手部模型已经包含在 `models/hand_landmarker.task` 中，正常
 | 3 | 波普印刷 / 水彩 / 蓝晒 / 半调网点 |
 | 4 | 金属浮雕 / 霓虹轮廓 / 双色剪纸 / 像素漫画 |
 | 5 | X 光 / 棕褐胶片 / 海报浮雕 / 棱镜镜像 |
+| 6 | 蒸汽波 / 全息镭射 / 紫外海报 / 液态铬 |
+| 7 | 珊瑚孔版印刷 / CMYK 套色 / 报纸网印 / 水墨 |
+| 8 | 极光 / 落日热感 / 潟湖玻璃 / 翡翠浮雕 |
+| 9 | RGB 残影 / CRT 梦境 / 数据缎带 / 矩阵荧光 |
+| 10 | 金箔 / 玫瑰金 / 珍珠偏光 / 黑曜石 |
 
 ## 快捷键
 
-- `1`–`5`：手动选择整套滤镜
+- `1`–`9`：手动选择第 1–9 套滤镜
+- `0`：手动选择第 10 套滤镜
+- `B`：开启或关闭磨皮
 - `H`：显示/隐藏界面信息
 - `M`：切换自拍镜像
-- `S`：保存当前滤镜截图
 - `Q` 或 `Esc`：退出
 
 ## 命令行选项
@@ -99,11 +107,17 @@ MediaPipe 手部模型已经包含在 `models/hand_landmarker.task` 中，正常
 ```bash
 python finger_lens.py --help
 python finger_lens.py --camera 1
-python finger_lens.py --width 960 --height 540
+python finger_lens.py --width 1280 --height 720
+python finger_lens.py --width 1920 --height 1080 --detect-width 1280
+python finger_lens.py --beauty 0.5
 python finger_lens.py --backend dshow
 ```
 
 支持的摄像头后端：`auto`、`avfoundation`、`dshow`、`msmf`、`v4l2`、`any`。通常保持 `auto` 即可。
+
+默认会向摄像头请求 1920×1080。程序启动后会打印“请求分辨率”和“实际分辨率”；实际值由摄像头硬件及驱动决定。`--detect-width` 只控制 MediaPipe 的识别开销，不会降低最终画面的分辨率。性能充足时可以设为 `1280`，追求更高帧率时可以设为 `720`。
+
+磨皮默认关闭，运行时按 `B` 会以自然强度 `0.35` 开启，再按一次即可关闭。磨皮只在检测到的肤色区域进行柔化，尽量保留背景和轮廓细节。也可以使用 `--beauty 0.5` 指定强度并在启动时直接开启。该功能只使用 NumPy 和 OpenCV，在 macOS、Windows 和 Linux 上采用相同实现。
 
 ## 摄像头问题
 
@@ -131,7 +145,7 @@ python finger_lens.py --camera 1
 
 - 关闭 FaceTime、微信、Teams、Zoom、OBS 等可能占用摄像头的应用
 - 外接摄像头或虚拟摄像头通常使用 `--camera 1`
-- 性能不足时使用 `--width 960 --height 540`
+- 性能不足时使用 `--width 1280 --height 720 --detect-width 720`
 - `--smoothing` 越小越稳定，越大越跟手
 
 ## 测试

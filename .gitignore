@@ -6,6 +6,3 @@ venv/
 .vscode/
 .DS_Store
 Thumbs.db
-fingerlens_*.jpg
-fingerlens_*.png
-fingerlens_*.mp4
