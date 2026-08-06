@@ -1,0 +1,10 @@
+name: fingerlens
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - mediapipe==0.10.21
+      - opencv-contrib-python==4.11.0.86
+      - numpy==1.26.4

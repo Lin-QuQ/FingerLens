@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+fingerlens_*.jpg
+fingerlens_*.png
+fingerlens_*.mp4
