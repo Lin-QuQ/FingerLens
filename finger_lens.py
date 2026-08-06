@@ -466,10 +466,15 @@ def draw_interface(
     clap_armed: bool,
 ) -> None:
     height, width = frame.shape[:2]
-    cv2.rectangle(frame, (16, 16), (355, 82), (8, 8, 12), -1)
-    cv2.line(frame, (16, 16), (355, 16), ZONE_COLORS[(style - 1) % 4], 3)
+    panel_right = min(width - 16, 455)
+    cv2.rectangle(frame, (16, 16), (panel_right, 82), (8, 8, 12), -1)
+    cv2.line(frame, (16, 16), (panel_right, 16), ZONE_COLORS[(style - 1) % 4], 3)
     cv2.putText(
-        frame, f"ART SET {style:02d} / {len(FILTER_SETS):02d}", (28, 45),
+        frame, "Lin-menmen", (28, 45),
+        cv2.FONT_HERSHEY_DUPLEX, 0.62, (255, 255, 255), 1, cv2.LINE_AA,
+    )
+    cv2.putText(
+        frame, f"ART SET {style:02d} / {len(FILTER_SETS):02d}", (182, 45),
         cv2.FONT_HERSHEY_DUPLEX, 0.62, (255, 255, 255), 1, cv2.LINE_AA,
     )
     gesture_text = "RELEASE PALMS" if clap_armed else "CLAP PALMS TO CHANGE"
@@ -485,6 +490,16 @@ def draw_interface(
         direction = 1 if corner_x < width // 2 else -1
         cv2.line(frame, (corner_x, 110), (corner_x + direction * 26, 110), (255, 255, 255), 1)
         cv2.line(frame, (corner_x, 110), (corner_x, 136), (255, 255, 255), 1)
+
+
+def draw_brand(frame: np.ndarray, style: int) -> None:
+    """Keep the creator mark visible even when the optional HUD is hidden."""
+    cv2.rectangle(frame, (16, 16), (166, 55), (8, 8, 12), -1)
+    cv2.line(frame, (16, 16), (166, 16), ZONE_COLORS[(style - 1) % 4], 3)
+    cv2.putText(
+        frame, "Lin-menmen", (28, 44),
+        cv2.FONT_HERSHEY_DUPLEX, 0.62, (255, 255, 255), 1, cv2.LINE_AA,
+    )
 
 
 def camera_frame_is_black(frame: np.ndarray | None) -> bool:
@@ -649,6 +664,8 @@ def run(args: argparse.Namespace) -> None:
                     draw_interface(
                         output, smooth_fps, style, len(hands), clap_switcher.armed
                     )
+                else:
+                    draw_brand(output, style)
 
                 cv2.imshow(window, output)
                 key = cv2.waitKey(1) & 0xFF
