@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 from PyInstaller.utils.hooks import (
-    collect_data_files,
     collect_dynamic_libs,
 )
 
@@ -12,7 +11,9 @@ from PyInstaller.utils.hooks import (
 ROOT = Path(SPEC).resolve().parent
 IS_MACOS = sys.platform == "darwin"
 
-mediapipe_datas = collect_data_files("mediapipe")
+# Do not collect every model shipped for MediaPipe Solutions. FingerLens uses
+# only the Hand Landmarker task model bundled below; face, pose, iris, and
+# segmentation models add tens of megabytes and are never loaded.
 mediapipe_binaries = collect_dynamic_libs("mediapipe")
 
 a = Analysis(
@@ -21,7 +22,7 @@ a = Analysis(
     binaries=mediapipe_binaries,
     datas=[
         (str(ROOT / "models" / "hand_landmarker.task"), "models"),
-    ] + mediapipe_datas,
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
