@@ -1,0 +1,113 @@
+name: Build desktop apps
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows x64
+            artifact: FingerLens-Windows-x64
+            platform: windows
+          - os: macos-14
+            label: macOS Apple Silicon
+            artifact: FingerLens-macOS-AppleSilicon
+            platform: macos
+          - os: macos-15-intel
+            label: macOS Intel
+            artifact: FingerLens-macOS-Intel
+            platform: macos
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install build dependencies
+        run: python -m pip install -r packaging/requirements-build.txt
+
+      - name: Run tests
+        run: python -m unittest -v
+
+      - name: Build application
+        env:
+          PYINSTALLER_CONFIG_DIR: ${{ runner.temp }}/pyinstaller
+        run: pyinstaller --noconfirm --clean FingerLens.spec
+
+      - name: Smoke-test Windows bundle
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          & .\dist\FingerLens\FingerLens.exe --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package Windows bundle
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $package = "release/${{ matrix.artifact }}"
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+          Copy-Item -Recurse -Force "dist/FingerLens/*" $package
+          Copy-Item -Force "packaging/使用说明.txt" $package
+          Copy-Item -Force "LICENSE" $package
+          Copy-Item -Force "THIRD_PARTY_NOTICES.md" $package
+          Compress-Archive -Path $package -DestinationPath "release/${{ matrix.artifact }}.zip" -CompressionLevel Optimal
+
+      - name: Ad-hoc sign macOS bundle
+        if: matrix.platform == 'macos'
+        run: codesign --force --deep --sign - dist/FingerLens.app
+
+      - name: Smoke-test macOS bundle
+        if: matrix.platform == 'macos'
+        run: dist/FingerLens.app/Contents/MacOS/FingerLens --self-test
+
+      - name: Package macOS bundle
+        if: matrix.platform == 'macos'
+        run: |
+          package="release/${{ matrix.artifact }}"
+          mkdir -p "$package"
+          cp -R dist/FingerLens.app "$package/"
+          cp packaging/使用说明.txt "$package/"
+          cp LICENSE THIRD_PARTY_NOTICES.md "$package/"
+          ditto -c -k --sequesterRsrc --keepParent "$package" "release/${{ matrix.artifact }}.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: release/${{ matrix.artifact }}.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download desktop packages
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" release/*.zip --generate-notes --title "FingerLens ${GITHUB_REF_NAME}"

@@ -1,0 +1,35 @@
+FingerLens 免安装版
+===================
+
+无需安装 Python 或 Anaconda。
+
+Windows：
+1. 完整解压 ZIP，不要直接在压缩包内运行。
+2. 双击 FingerLens.exe。
+3. 首次运行如果出现 Windows SmartScreen，请点击“更多信息”→“仍要运行”。
+4. 在 Windows 设置中允许桌面应用访问摄像头。
+
+macOS：
+1. 完整解压 ZIP。
+2. 双击 FingerLens.app。
+3. 如果系统提示无法验证开发者，请右键 FingerLens.app，选择“打开”，再确认一次。
+4. 首次运行时允许 FingerLens 使用摄像头。
+
+操作：
+- 双手同时进入画面并张开手指。
+- 两个手掌合到一起再分开，可切换下一套滤镜。
+- 1–9：选择第 1–9 套滤镜。
+- 0：选择第 10 套滤镜。
+- B：开启或关闭磨皮（默认关闭）。
+- H：显示或隐藏界面信息。
+- M：切换镜像。
+- Q 或 Esc：退出。
+
+常见问题：
+- 黑屏：关闭微信、腾讯会议、Zoom、OBS 等占用摄像头的软件后重试。
+- 外接摄像头：免安装版默认使用 0 号摄像头；高级设置请参考源码仓库 README。
+- 程序不会上传摄像头画面，所有处理均在本机完成。
+
+源码与更新：
+GitHub：https://github.com/Lin-QuQ/FingerLens
+Gitee：https://gitee.com/Lin-QuQ/FingerLens

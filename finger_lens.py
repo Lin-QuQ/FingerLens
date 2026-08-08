@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import math
 import platform
+import subprocess
+import sys
 import time
 import urllib.request
 from dataclasses import dataclass, field
@@ -13,6 +15,21 @@ from pathlib import Path
 from typing import Dict, Mapping, MutableMapping, Sequence, Tuple
 
 import cv2
+
+# MediaPipe imports its optional drawing helpers at package initialization;
+# those helpers import Matplotlib even though FingerLens never uses them. A
+# tiny frozen-build stub avoids shipping and initializing the whole plotting
+# stack while preserving normal source-environment behavior.
+if getattr(sys, "frozen", False):
+    import types
+
+    matplotlib_stub = types.ModuleType("matplotlib")
+    pyplot_stub = types.ModuleType("matplotlib.pyplot")
+    matplotlib_stub.__path__ = []
+    matplotlib_stub.pyplot = pyplot_stub
+    sys.modules.setdefault("matplotlib", matplotlib_stub)
+    sys.modules.setdefault("matplotlib.pyplot", pyplot_stub)
+
 import mediapipe as mp
 import numpy as np
 
@@ -213,6 +230,28 @@ def make_landmarker(model_path: Path):
         min_tracking_confidence=0.55,
     )
     return mp.tasks.vision.HandLandmarker.create_from_options(options)
+
+
+def run_self_test(model_path: Path) -> None:
+    """Exercise bundled model loading without opening a camera."""
+    model_path = ensure_model(model_path)
+    blank = np.zeros((360, 640, 3), dtype=np.uint8)
+    image = mp.Image(image_format=mp.ImageFormat.SRGB, data=blank)
+    test_window = None
+    try:
+        if platform.system() == "Darwin":
+            # Initialize Cocoa/NSOpenGL before MediaPipe creates its GPU
+            # service. This is required by console-free macOS app bundles.
+            test_window = "FingerLens self-test"
+            cv2.namedWindow(test_window, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(test_window, 2, 2)
+            cv2.imshow(test_window, np.zeros((2, 2, 3), dtype=np.uint8))
+            cv2.waitKey(1)
+        with make_landmarker(model_path) as landmarker:
+            landmarker.detect_for_video(image, 0)
+    finally:
+        if test_window is not None:
+            cv2.destroyWindow(test_window)
 
 
 def normalize_hands(
@@ -865,11 +904,13 @@ def run(args: argparse.Namespace) -> None:
     window = "FingerLens — Q to quit"
 
     try:
+        # Create the native window before MediaPipe initializes its rendering
+        # services. This is important for console-free macOS app bundles.
+        cv2.namedWindow(window, cv2.WINDOW_AUTOSIZE)
         with make_landmarker(model_path) as landmarker:
             # WINDOW_AUTOSIZE avoids a Cocoa/OpenCV issue where a resizable
             # window can vanish while crossing macOS displays with different
             # Retina scale factors. The image stays at its native resolution.
-            cv2.namedWindow(window, cv2.WINDOW_AUTOSIZE)
             while True:
                 ok, frame = capture.read()
                 if not ok:
@@ -970,6 +1011,7 @@ def parse_args() -> argparse.Namespace:
         "--model", type=Path,
         default=Path(__file__).resolve().parent / "models" / "hand_landmarker.task",
     )
+    parser.add_argument("--self-test", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if not 0.0 < args.smoothing <= 1.0:
         parser.error("--smoothing 必须在 (0, 1] 范围内")
@@ -981,5 +1023,51 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def show_error_dialog(message: str) -> None:
+    """Show a native fatal-error dialog for console-free packaged builds."""
+    title = "FingerLens 无法启动"
+    try:
+        if platform.system() == "Windows":
+            import ctypes
+
+            ctypes.windll.user32.MessageBoxW(None, message, title, 0x10)
+            return
+        if platform.system() == "Darwin":
+            safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
+            safe_message = message.replace("\\", "\\\\").replace('"', '\\"')
+            script = (
+                f'display alert "{safe_title}" message "{safe_message}" '
+                'as critical buttons {"好"} default button "好"'
+            )
+            subprocess.run(
+                ["osascript", "-e", script],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return
+    except Exception:
+        pass
+    print(f"{title}：{message}", file=sys.stderr)
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        if args.self_test:
+            run_self_test(args.model)
+        else:
+            run(args)
+    except Exception as exc:
+        if args.self_test:
+            print(f"FingerLens self-test failed: {exc}", file=sys.stderr)
+            return 1
+        if getattr(sys, "frozen", False):
+            show_error_dialog(str(exc))
+            return 1
+        raise
+    return 0
+
+
 if __name__ == "__main__":
-    run(parse_args())
+    raise SystemExit(main())

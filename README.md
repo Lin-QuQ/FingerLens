@@ -1,6 +1,30 @@
 # FingerLens
 
+<p align="center">
+  <img src="assets/fingerlens-icon.png" width="144" alt="FingerLens 图标">
+</p>
+
 基于 Python、MediaPipe 和 OpenCV 的实时双手指尖艺术滤镜。程序识别左右手指尖，把两手相邻手指围成的四边形变成独立的动态滤镜区域；摄像头画面全程在本机处理。
+
+## 选择你的版本
+
+### 只想直接玩（无需 Python）
+
+前往 [GitHub Releases](https://github.com/Lin-QuQ/FingerLens/releases/latest) 下载与你电脑对应的免安装包：
+
+| 电脑 | 下载文件 | 启动方式 |
+| --- | --- | --- |
+| Windows 10/11 64 位 | `FingerLens-Windows-x64.zip` | 完整解压后双击 `FingerLens.exe` |
+| Apple Silicon Mac（M1/M2/M3/M4/M5） | `FingerLens-macOS-AppleSilicon.zip` | 解压后双击 `FingerLens.app` |
+| Intel Mac | `FingerLens-macOS-Intel.zip` | 解压后双击 `FingerLens.app` |
+
+免安装版已经包含 Python、MediaPipe、OpenCV 和手部模型。第一次启动需要允许摄像头权限。当前发布包未购买商业代码签名：Windows 如果出现 SmartScreen，请选择“更多信息”→“仍要运行”；macOS 如果提示无法验证开发者，请右键应用选择“打开”。压缩包内附有 `使用说明.txt`。
+
+国内用户也可以访问 [Gitee 仓库](https://gitee.com/Lin-QuQ/FingerLens)。Release 安装包发布后可同步上传到 Gitee，源码则由 GitHub 导入保持镜像。
+
+### 想学习或修改代码
+
+继续阅读下面的源码安装方法。仓库完整保留 Python 源码，并采用 MIT License。
 
 ## 功能
 
@@ -17,13 +41,13 @@
 
 | 系统 | 支持情况 | 默认摄像头后端 |
 | --- | --- | --- |
-| macOS 11+（Intel/Apple Silicon） | 支持 | AVFoundation |
+| macOS 13+（Intel/Apple Silicon） | 支持 | AVFoundation |
 | Windows 10/11 x64 | 支持 | DirectShow → MSMF |
 | Linux x86-64 | 实验性支持 | V4L2 |
 
 需要 Python 3.11 和可用摄像头。Windows ARM 暂未测试。
 
-## 安装
+## 源码版安装
 
 ### 使用 Conda（推荐）
 
@@ -155,6 +179,10 @@ python -m unittest -v
 ```
 
 自动化测试覆盖滤镜输出、区域蒙版、关键点平滑、鼓掌状态机、黑帧识别和跨平台摄像头后端选择。由于摄像头驱动与硬件有关，发布新版本前仍建议分别在 macOS 和 Windows 真机测试。
+
+## 打包与发布
+
+仓库包含 PyInstaller 配置和 GitHub Actions 工作流。推送 `v*` 标签后，会分别在 Windows x64、macOS Apple Silicon 和 macOS Intel 环境中运行测试、构建免安装包、执行模型自检并创建 GitHub Release。维护者操作说明见 [PACKAGING.md](PACKAGING.md)。
 
 ## 隐私
 
