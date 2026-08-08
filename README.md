@@ -19,7 +19,7 @@
 
 免安装版已经包含 Python、MediaPipe、OpenCV 和手部模型。第一次启动需要允许摄像头权限。当前发布包未购买商业代码签名：Windows 如果出现 SmartScreen，请选择“更多信息”→“仍要运行”；macOS 如果提示无法验证开发者，请右键应用选择“打开”。压缩包内附有 `使用说明.txt`。
 
-国内用户也可以访问 [Gitee 仓库](https://gitee.com/Lin-QuQ/FingerLens)。Release 安装包发布后可同步上传到 Gitee，源码则由 GitHub 导入保持镜像。
+国内用户可以前往 [Gitee Releases](https://gitee.com/Lin-QuQ/FingerLens/releases) 下载相同的 Windows x64 和 macOS Apple Silicon 免安装包；[Gitee 仓库主页](https://gitee.com/Lin-QuQ/FingerLens) 同步提供完整源码。
 
 ### 想学习或修改代码
 
