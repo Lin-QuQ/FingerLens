@@ -15,8 +15,7 @@
 | 电脑 | 下载文件 | 启动方式 |
 | --- | --- | --- |
 | Windows 10/11 64 位 | `FingerLens-Windows-x64.zip` | 完整解压后双击 `FingerLens.exe` |
-| Apple Silicon Mac（M1/M2/M3/M4/M5） | `FingerLens-macOS-AppleSilicon.zip` | 解压后双击 `FingerLens.app` |
-| Intel Mac | `FingerLens-macOS-Intel.zip` | 解压后双击 `FingerLens.app` |
+| Apple Silicon Mac（M1/M2/M3/M4/M5 及后续 Apple 芯片） | `FingerLens-macOS-AppleSilicon.zip` | 解压后双击 `FingerLens.app` |
 
 免安装版已经包含 Python、MediaPipe、OpenCV 和手部模型。第一次启动需要允许摄像头权限。当前发布包未购买商业代码签名：Windows 如果出现 SmartScreen，请选择“更多信息”→“仍要运行”；macOS 如果提示无法验证开发者，请右键应用选择“打开”。压缩包内附有 `使用说明.txt`。
 
@@ -41,11 +40,11 @@
 
 | 系统 | 支持情况 | 默认摄像头后端 |
 | --- | --- | --- |
-| macOS 13+（Intel/Apple Silicon） | 支持 | AVFoundation |
+| macOS 13+（Apple Silicon） | 支持 | AVFoundation |
 | Windows 10/11 x64 | 支持 | DirectShow → MSMF |
 | Linux x86-64 | 实验性支持 | V4L2 |
 
-需要 Python 3.11 和可用摄像头。Windows ARM 暂未测试。
+源码运行需要 Python 3.11 和可用摄像头。Intel Mac 和 Windows ARM 暂不提供免安装版。
 
 ## 源码版安装
 
@@ -182,7 +181,7 @@ python -m unittest -v
 
 ## 打包与发布
 
-仓库包含 PyInstaller 配置和 GitHub Actions 工作流。推送 `v*` 标签后，会分别在 Windows x64、macOS Apple Silicon 和 macOS Intel 环境中运行测试、构建免安装包、执行模型自检并创建 GitHub Release。维护者操作说明见 [PACKAGING.md](PACKAGING.md)。
+仓库包含 PyInstaller 配置和 GitHub Actions 工作流。推送 `v*` 标签后，会分别在 Windows x64 和 macOS Apple Silicon 环境中校验架构、运行测试、构建免安装包、执行模型自检并创建 GitHub Release。维护者操作说明见 [PACKAGING.md](PACKAGING.md)。
 
 ## 隐私
 

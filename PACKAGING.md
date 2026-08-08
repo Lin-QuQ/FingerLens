@@ -4,11 +4,10 @@
 
 ## 自动构建（推荐）
 
-`.github/workflows/build-release.yml` 提供三个独立构建环境：
+`.github/workflows/build-release.yml` 提供两个独立构建环境：
 
 - Windows x64：`windows-latest`
-- macOS Apple Silicon：`macos-14`
-- macOS Intel：`macos-15-intel`
+- macOS Apple Silicon：`macos-15`
 
 在 GitHub 仓库的 **Actions → Build desktop apps → Run workflow** 可以手动构建测试包。构建成功后，从该次运行页面的 Artifacts 区域下载。
 
@@ -24,15 +23,18 @@ git push origin v1.0.0
 1. 安装 Python 3.11 和固定版本依赖。
 2. 运行全部单元测试。
 3. 使用 `FingerLens.spec` 构建无终端窗口的桌面应用。
-4. 使用打包后的程序加载 MediaPipe 模型并执行自检。
-5. 生成三个 ZIP 文件。
-6. 创建 GitHub Release 并上传 ZIP。
+4. 校验最终可执行文件确实为 Windows x64 或 macOS arm64，防止错误架构混入发布包。
+5. 使用打包后的程序加载 MediaPipe 模型并执行自检。
+6. 生成两个 ZIP 文件。
+7. 创建 GitHub Release 并上传 ZIP。
 
-GitHub 会自动在 Release 中附带源码 ZIP 和 TAR.GZ。若需服务国内用户，可将三个免安装 ZIP 再上传到对应的 Gitee Release。
+GitHub 会自动在 Release 中附带源码 ZIP 和 TAR.GZ。若需服务国内用户，可将两个免安装 ZIP 再上传到对应的 Gitee Release。
 
 ## 本机构建
 
 PyInstaller 不是交叉编译器：Windows 包必须在 Windows 构建，macOS 包必须在 macOS 构建。
+
+macOS Apple Silicon 使用统一的 arm64 指令集，一个安装包覆盖 M1、M2、M3、M4、M5 及后续 Apple 芯片。项目不再发布 Intel Mac 免安装版。
 
 固定版本 OpenCV 的 macOS wheel 最低平台标签为 macOS 13，因此当前 macOS 免安装版和源码依赖均以 macOS 13 为最低版本。
 

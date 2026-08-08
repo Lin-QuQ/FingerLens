@@ -21,14 +21,12 @@ jobs:
             label: Windows x64
             artifact: FingerLens-Windows-x64
             platform: windows
-          - os: macos-14
+            architecture: amd64
+          - os: macos-15
             label: macOS Apple Silicon
             artifact: FingerLens-macOS-AppleSilicon
             platform: macos
-          - os: macos-15-intel
-            label: macOS Intel
-            artifact: FingerLens-macOS-Intel
-            platform: macos
+            architecture: arm64
 
     steps:
       - name: Check out source
@@ -40,6 +38,10 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      - name: Verify runner architecture
+        run: >-
+          python -c "import platform; actual=platform.machine().lower(); expected='${{ matrix.architecture }}'; print(f'runner architecture: {actual}'); assert actual == expected, f'expected {expected}, got {actual}'"
+
       - name: Install build dependencies
         run: python -m pip install -r packaging/requirements-build.txt
 
@@ -50,6 +52,19 @@ jobs:
         env:
           PYINSTALLER_CONFIG_DIR: ${{ runner.temp }}/pyinstaller
         run: pyinstaller --noconfirm --clean FingerLens.spec
+
+      - name: Verify Windows executable architecture
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $bytes = [System.IO.File]::ReadAllBytes("dist/FingerLens/FingerLens.exe")
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          if ($machine -ne 0x8664) { throw "Expected x64 PE (0x8664), got 0x$($machine.ToString('X4'))" }
+
+      - name: Verify macOS executable architecture
+        if: matrix.platform == 'macos'
+        run: file dist/FingerLens.app/Contents/MacOS/FingerLens | grep -q "arm64"
 
       - name: Smoke-test Windows bundle
         if: matrix.platform == 'windows'

@@ -9,7 +9,7 @@ Windows：
 3. 首次运行如果出现 Windows SmartScreen，请点击“更多信息”→“仍要运行”。
 4. 在 Windows 设置中允许桌面应用访问摄像头。
 
-macOS：
+macOS Apple 芯片（M1/M2/M3/M4/M5 及后续 Apple 芯片）：
 1. 完整解压 ZIP。
 2. 双击 FingerLens.app。
 3. 如果系统提示无法验证开发者，请右键 FingerLens.app，选择“打开”，再确认一次。
