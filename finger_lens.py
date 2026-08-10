@@ -814,17 +814,25 @@ def camera_backend_candidates(
     return [(name, backends[name]) for name in names]
 
 
+def camera_index_candidates(index: int) -> tuple[int, ...]:
+    """Scan common webcam slots unless the user explicitly chose one."""
+    return (0, 1, 2) if index < 0 else (index,)
+
+
 def camera_help(system_name: str | None = None) -> str:
     current = system_name or platform.system()
     if current == "Darwin":
         return (
-            "系统设置 → 隐私与安全性 → 摄像头：允许当前终端或 IDE；"
+            "系统设置 → 隐私与安全性 → 摄像头：允许 FingerLens；"
+            "源码运行时请允许当前终端或 IDE。"
             "修改权限后请完全退出并重新打开该应用。"
         )
     if current == "Windows":
         return (
             "Windows 设置 → 隐私和安全性 → 摄像头：开启“摄像头访问”和"
-            "“允许桌面应用访问摄像头”；并关闭可能占用摄像头的会议/直播软件。"
+            "“允许桌面应用访问摄像头”；确认摄像头物理开关已打开，并关闭微信、"
+            "Teams、Zoom、OBS 等可能占用摄像头的软件。若 Windows 自带“相机”"
+            "也无法使用，请在设备管理器中更新或重新安装摄像头驱动。"
         )
     return (
         "请确认当前用户有权访问 /dev/video*，并关闭可能占用摄像头的应用。"
@@ -837,54 +845,69 @@ def open_camera(
     height: int,
     requested_backend: str = "auto",
 ) -> cv2.VideoCapture:
-    """Open a camera with platform-specific backends and automatic fallback."""
+    """Open a camera with automatic index and platform-backend fallback."""
     attempted = []
     opened_but_black = []
-    for backend_name, backend in camera_backend_candidates(requested=requested_backend):
-        attempted.append(backend_name)
-        capture = cv2.VideoCapture(index, backend)
-        if not capture.isOpened():
-            capture.release()
-            continue
+    indices = camera_index_candidates(index)
+    backends = camera_backend_candidates(requested=requested_backend)
+    for camera_index in indices:
+        for backend_name, backend in backends:
+            attempt = f"{camera_index}/{backend_name}"
+            attempted.append(attempt)
+            capture = cv2.VideoCapture(camera_index, backend)
+            if not capture.isOpened():
+                capture.release()
+                continue
 
-        capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        capture.set(cv2.CAP_PROP_CONVERT_RGB, 1)
+            capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            capture.set(cv2.CAP_PROP_CONVERT_RGB, 1)
 
-        # Start at the camera's native resolution. Some devices return black
-        # frames when an unsupported size is forced during initialization.
-        valid_frame = False
-        for _ in range(45):
-            ok, warmup = capture.read()
-            if ok and not camera_frame_is_black(warmup):
-                valid_frame = True
-                break
-            time.sleep(0.025)
+            # Start at the camera's native resolution. Some devices return
+            # black frames when an unsupported size is forced at startup.
+            valid_frame = False
+            for _ in range(45):
+                ok, warmup = capture.read()
+                if ok and not camera_frame_is_black(warmup):
+                    valid_frame = True
+                    break
+                time.sleep(0.025)
 
-        if not valid_frame:
-            opened_but_black.append(backend_name)
-            capture.release()
-            continue
+            if not valid_frame:
+                opened_but_black.append(attempt)
+                capture.release()
+                continue
 
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        actual_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-        actual_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        print(
-            f"摄像头 {index} 已连接，后端：{backend_name}；"
-            f"请求 {width}x{height}，实际 {actual_width}x{actual_height}"
-        )
-        return capture
+            capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+            capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            actual_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            actual_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            print(
+                f"摄像头 {camera_index} 已连接，后端：{backend_name}；"
+                f"请求 {width}x{height}，实际 {actual_width}x{actual_height}"
+            )
+            return capture
 
     detail = (
         "摄像头可以打开但持续返回黑画面。"
         if opened_but_black
         else "摄像头无法打开。"
     )
+    index_text = ", ".join(str(value) for value in indices)
     raise RuntimeError(
-        f"{detail} 编号：{index}；已尝试后端：{', '.join(attempted)}。\n"
+        f"{detail} 已扫描摄像头编号：{index_text}；"
+        f"已尝试组合：{', '.join(attempted)}。\n"
         f"{camera_help()}\n"
-        "若使用外接或虚拟摄像头，请尝试 --camera 1；也可用 --backend 指定后端。"
+        "程序已自动扫描常见摄像头；高级用户也可用 --camera 或 --backend 指定设备。"
     )
+
+
+def window_is_closed(window: str) -> bool:
+    """Return True after the native title-bar close button is clicked."""
+    try:
+        return cv2.getWindowProperty(window, cv2.WND_PROP_VISIBLE) < 1
+    except cv2.error:
+        # Some Windows OpenCV builds throw after the native window is gone.
+        return True
 
 
 def run(args: argparse.Namespace) -> None:
@@ -969,7 +992,7 @@ def run(args: argparse.Namespace) -> None:
 
                 cv2.imshow(window, output)
                 key = cv2.waitKey(1) & 0xFF
-                if key in (ord("q"), 27):
+                if key in (ord("q"), 27) or window_is_closed(window):
                     break
                 if key in style_keys:
                     style = style_keys[key]
@@ -987,7 +1010,10 @@ def run(args: argparse.Namespace) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="实时双手指尖区域滤镜")
-    parser.add_argument("--camera", type=int, default=0, help="摄像头编号，默认 0")
+    parser.add_argument(
+        "--camera", type=int, default=-1,
+        help="摄像头编号；默认自动扫描 0、1、2",
+    )
     parser.add_argument(
         "--backend",
         choices=("auto", "avfoundation", "dshow", "msmf", "v4l2", "any"),

@@ -12,10 +12,13 @@ from finger_lens import (
     camera_backend_candidates,
     camera_frame_is_black,
     camera_help,
+    camera_index_candidates,
     draw_zones,
     fashion_filter,
+    open_camera,
     polygon_mask,
     parse_args,
+    window_is_closed,
 )
 
 
@@ -98,6 +101,51 @@ class EffectTests(unittest.TestCase):
             [name for name, _ in camera_backend_candidates("Windows", "msmf")],
             ["msmf"],
         )
+
+    def test_camera_index_auto_scan_and_explicit_selection(self):
+        self.assertEqual(camera_index_candidates(-1), (0, 1, 2))
+        self.assertEqual(camera_index_candidates(1), (1,))
+        with patch("sys.argv", ["finger_lens.py"]):
+            self.assertEqual(parse_args().camera, -1)
+
+    def test_auto_camera_scan_falls_back_from_zero_to_one(self):
+        opened_indices = []
+
+        class FakeCapture:
+            def __init__(self, index, _backend):
+                self.index = index
+                opened_indices.append(index)
+
+            def isOpened(self):
+                return self.index == 1
+
+            def release(self):
+                pass
+
+            def set(self, _prop, _value):
+                return True
+
+            def get(self, prop):
+                return 640 if prop == 3 else 480
+
+            def read(self):
+                return True, np.full((48, 64, 3), 80, dtype=np.uint8)
+
+        with patch("finger_lens.cv2.VideoCapture", side_effect=FakeCapture), patch(
+            "finger_lens.camera_backend_candidates", return_value=[("test", 0)]
+        ):
+            capture = open_camera(-1, 640, 480)
+
+        self.assertEqual(opened_indices, [0, 1])
+        self.assertEqual(capture.index, 1)
+
+    @patch("finger_lens.cv2.getWindowProperty", return_value=0.0)
+    def test_native_close_button_is_detected(self, _get_window_property):
+        self.assertTrue(window_is_closed("FingerLens"))
+
+    @patch("finger_lens.cv2.getWindowProperty", return_value=1.0)
+    def test_visible_window_remains_open(self, _get_window_property):
+        self.assertFalse(window_is_closed("FingerLens"))
 
     def test_platform_camera_help(self):
         self.assertIn("Windows 设置", camera_help("Windows"))

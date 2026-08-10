@@ -136,7 +136,7 @@ python finger_lens.py --beauty 0.5
 python finger_lens.py --backend dshow
 ```
 
-支持的摄像头后端：`auto`、`avfoundation`、`dshow`、`msmf`、`v4l2`、`any`。通常保持 `auto` 即可。
+支持的摄像头后端：`auto`、`avfoundation`、`dshow`、`msmf`、`v4l2`、`any`。通常保持 `auto` 即可。未指定 `--camera` 时，程序会自动扫描 0、1、2 号摄像头；指定编号后只尝试该设备。
 
 默认会向摄像头请求 1920×1080。程序启动后会打印“请求分辨率”和“实际分辨率”；实际值由摄像头硬件及驱动决定。`--detect-width` 只控制 MediaPipe 的识别开销，不会降低最终画面的分辨率。性能充足时可以设为 `1280`，追求更高帧率时可以设为 `720`。
 
@@ -156,6 +156,16 @@ python finger_lens.py --backend dshow
 - 允许应用访问摄像头
 - 允许桌面应用访问摄像头
 
+免安装版属于桌面应用，通常不会单独出现在应用权限列表中；关键是开启“允许桌面应用访问摄像头”。程序默认会自动扫描 0、1、2 号摄像头，并依次尝试 DirectShow、MSMF 和系统默认后端。
+
+如果仍然无法打开：
+
+- 先打开 Windows 自带的“相机”应用；如果它也没有画面，问题在系统权限、物理开关或驱动，而不是 FingerLens
+- 检查笔记本摄像头拨片、键盘摄像头快捷键或厂商隐私模式
+- 完全退出微信、腾讯会议、Teams、Zoom、OBS、浏览器视频页面及虚拟摄像头软件
+- 在“设备管理器 → 相机/图像设备”中启用并更新摄像头；更新系统后突然失效时可卸载设备再重启，让 Windows 重新安装驱动
+- 公司或学校电脑可能通过管理员策略禁止桌面应用访问摄像头
+
 如果默认模式失败，可以依次尝试：
 
 ```powershell
@@ -167,7 +177,7 @@ python finger_lens.py --camera 1
 ### 通用排查
 
 - 关闭 FaceTime、微信、Teams、Zoom、OBS 等可能占用摄像头的应用
-- 外接摄像头或虚拟摄像头通常使用 `--camera 1`
+- 程序会自动扫描 0、1、2 号摄像头；高级用户仍可用 `--camera 1` 锁定设备
 - 性能不足时使用 `--width 1280 --height 720 --detect-width 720`
 - `--smoothing` 越小越稳定，越大越跟手
 
