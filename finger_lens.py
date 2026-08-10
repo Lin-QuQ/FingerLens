@@ -99,6 +99,26 @@ ZONE_COLORS = (
     (56, 255, 235),
     (91, 255, 80),
 )
+
+
+def console_log(message: str, stream=None) -> None:
+    """Write diagnostics without breaking GUI builds or legacy consoles."""
+    target = sys.stdout if stream is None else stream
+    if target is None:
+        return
+    try:
+        print(message, file=target)
+    except UnicodeEncodeError:
+        encoding = getattr(target, "encoding", None) or "ascii"
+        safe_message = message.encode(encoding, errors="replace").decode(encoding)
+        try:
+            print(safe_message, file=target)
+        except (AttributeError, OSError, UnicodeError):
+            pass
+    except (AttributeError, OSError):
+        pass
+
+
 @dataclass
 class SmoothLandmarks:
     alpha: float = 0.58
@@ -203,7 +223,7 @@ def ensure_model(path: Path) -> Path:
     if path.exists() and path.stat().st_size > 1_000_000:
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
-    print(f"首次运行：正在下载 MediaPipe 手部模型到 {path} ...")
+    console_log(f"首次运行：正在下载 MediaPipe 手部模型到 {path} ...")
     try:
         urllib.request.urlretrieve(MODEL_URL, path)
     except Exception as exc:
@@ -881,7 +901,7 @@ def open_camera(
             capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
             actual_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
             actual_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            print(
+            console_log(
                 f"摄像头 {camera_index} 已连接，后端：{backend_name}；"
                 f"请求 {width}x{height}，实际 {actual_width}x{actual_height}"
             )
@@ -1074,7 +1094,7 @@ def show_error_dialog(message: str) -> None:
             return
     except Exception:
         pass
-    print(f"{title}：{message}", file=sys.stderr)
+    console_log(f"{title}：{message}", sys.stderr)
 
 
 def main() -> int:
@@ -1086,7 +1106,7 @@ def main() -> int:
             run(args)
     except Exception as exc:
         if args.self_test:
-            print(f"FingerLens self-test failed: {exc}", file=sys.stderr)
+            console_log(f"FingerLens self-test failed: {exc}", sys.stderr)
             return 1
         if getattr(sys, "frozen", False):
             show_error_dialog(str(exc))

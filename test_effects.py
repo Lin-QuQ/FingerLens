@@ -13,6 +13,7 @@ from finger_lens import (
     camera_frame_is_black,
     camera_help,
     camera_index_candidates,
+    console_log,
     draw_zones,
     fashion_filter,
     open_camera,
@@ -138,6 +139,24 @@ class EffectTests(unittest.TestCase):
 
         self.assertEqual(opened_indices, [0, 1])
         self.assertEqual(capture.index, 1)
+
+    def test_console_log_handles_legacy_windows_encoding(self):
+        class AsciiStream:
+            encoding = "ascii"
+
+            def __init__(self):
+                self.output = ""
+
+            def write(self, value):
+                value.encode(self.encoding)
+                self.output += value
+
+            def flush(self):
+                pass
+
+        stream = AsciiStream()
+        console_log("摄像头已连接", stream)
+        self.assertIn("?", stream.output)
 
     @patch("finger_lens.cv2.getWindowProperty", return_value=0.0)
     def test_native_close_button_is_detected(self, _get_window_property):
